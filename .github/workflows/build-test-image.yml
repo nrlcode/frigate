@@ -6,6 +6,10 @@ on:
     branches:
       - history-ui-test
 
+concurrency:
+  group: build-test-image-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -40,6 +44,10 @@ jobs:
           target: frigate
           platforms: linux/amd64
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/${{ github.repository_owner }}/frigate-test:latest
             ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
