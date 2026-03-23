@@ -101,9 +101,7 @@ export function generateSnapshotFilename(
   cameraName: string,
   timestampSeconds?: number,
 ): string {
-  const timestamp = new Date(
-    (timestampSeconds ?? Date.now() / 1000) * 1000,
-  )
+  const timestamp = new Date((timestampSeconds ?? Date.now() / 1000) * 1000)
     .toISOString()
     .replace(/[:.]/g, "-")
     .slice(0, -5);

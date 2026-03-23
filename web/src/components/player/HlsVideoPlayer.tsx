@@ -351,9 +351,12 @@ export default function HlsVideoPlayer({
                 result.data.dataUrl,
                 generateSnapshotFilename(camera ?? "recording", frameTime),
               );
-              toast.success(t("snapshot.downloadStarted", { ns: "views/live" }), {
-                position: "top-center",
-              });
+              toast.success(
+                t("snapshot.downloadStarted", { ns: "views/live" }),
+                {
+                  position: "top-center",
+                },
+              );
             } else {
               toast.error(t("snapshot.captureFailed", { ns: "views/live" }), {
                 position: "top-center",

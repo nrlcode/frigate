@@ -356,6 +356,10 @@ export function RecordingView({
     (newCam: string) => {
       if (allowedCameras.includes(newCam)) {
         setMainCamera(newCam);
+        setFullResolution({
+          width: 0,
+          height: 0,
+        });
         setPlaybackStart(currentTime);
       }
     },
@@ -493,7 +497,13 @@ export function RecordingView({
           ? "aspect-tall portrait:h-full"
           : "aspect-video",
     );
-  }, [fullscreen, mainCameraAspect, mobileTheaterMode, mobileViewportMode, useHeightBased]);
+  }, [
+    fullscreen,
+    mainCameraAspect,
+    mobileTheaterMode,
+    mobileViewportMode,
+    useHeightBased,
+  ]);
 
   const previewRowOverflows = useMemo(() => {
     if (!previewRowRef.current) {
@@ -852,7 +862,9 @@ export function RecordingView({
                 <div
                   className={cn(
                     "relative max-h-full min-h-0 min-w-0 max-w-full",
-                    mobileTheaterMode && mobileViewportMode == "fill" && "size-full",
+                    mobileTheaterMode &&
+                      mobileViewportMode == "fill" &&
+                      "size-full",
                     fittedPlayerClass,
                   )}
                   style={{
@@ -894,9 +906,7 @@ export function RecordingView({
                     toggleFullscreen={toggleFullscreen}
                     containerRef={mainLayoutRef}
                     viewportMode={
-                      isMobile && mobileTheaterMode
-                        ? mobileViewportMode
-                        : "fit"
+                      isMobile && mobileTheaterMode ? mobileViewportMode : "fit"
                     }
                   />
                 </div>
