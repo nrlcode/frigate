@@ -97,8 +97,16 @@ export function downloadSnapshot(dataUrl: string, filename: string): void {
   }
 }
 
-export function generateSnapshotFilename(cameraName: string): string {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+export function generateSnapshotFilename(
+  cameraName: string,
+  timestampSeconds?: number,
+): string {
+  const timestamp = new Date(
+    (timestampSeconds ?? Date.now() / 1000) * 1000,
+  )
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .slice(0, -5);
   return `${cameraName}_snapshot_${timestamp}.jpg`;
 }
 

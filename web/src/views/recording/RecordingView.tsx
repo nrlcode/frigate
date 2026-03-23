@@ -51,7 +51,7 @@ import MobileTimelineDrawer from "@/components/overlay/MobileTimelineDrawer";
 import MobileReviewSettingsDrawer from "@/components/overlay/MobileReviewSettingsDrawer";
 import Logo from "@/components/Logo";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FaVideo } from "react-icons/fa";
+import { FaCompress, FaExpand, FaVideo } from "react-icons/fa";
 import { VideoResolutionType } from "@/types/live";
 import {
   ASPECT_VERTICAL_LAYOUT,
@@ -356,10 +356,6 @@ export function RecordingView({
     (newCam: string) => {
       if (allowedCameras.includes(newCam)) {
         setMainCamera(newCam);
-        setFullResolution({
-          width: 0,
-          height: 0,
-        });
         setPlaybackStart(currentTime);
       }
     },
@@ -370,6 +366,11 @@ export function RecordingView({
 
   const { fullscreen, toggleFullscreen, supportsFullScreen } =
     useFullscreen(mainLayoutRef);
+
+  const [mobileViewportMode, setMobileViewportMode] = useState<"fit" | "fill">(
+    "fit",
+  );
+  const [mobileTheaterMode, setMobileTheaterMode] = useState(false);
 
   // layout
 
@@ -476,6 +477,14 @@ export function RecordingView({
       return useHeightBased ? "h-full" : "w-full";
     }
 
+    if (mobileTheaterMode && mobileViewportMode == "fill") {
+      return "size-full";
+    }
+
+    if (mobileTheaterMode) {
+      return "portrait:w-full landscape:h-full";
+    }
+
     return cn(
       "flex-shrink-0 portrait:w-full landscape:h-full",
       mainCameraAspect == "wide"
@@ -484,7 +493,7 @@ export function RecordingView({
           ? "aspect-tall portrait:h-full"
           : "aspect-video",
     );
-  }, [fullscreen, mainCameraAspect, useHeightBased]);
+  }, [fullscreen, mainCameraAspect, mobileTheaterMode, mobileViewportMode, useHeightBased]);
 
   const previewRowOverflows = useMemo(() => {
     if (!previewRowRef.current) {
@@ -614,6 +623,30 @@ export function RecordingView({
             </Button>
           </div>
           <div className="flex items-center justify-end gap-2">
+            {isMobile && (
+              <>
+                <Button
+                  className="rounded-lg"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    setMobileViewportMode((prev) =>
+                      prev == "fit" ? "fill" : "fit",
+                    )
+                  }
+                >
+                  {mobileViewportMode == "fit" ? "Fill" : "Fit"}
+                </Button>
+                <Button
+                  className="rounded-lg"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setMobileTheaterMode((prev) => !prev)}
+                >
+                  {mobileTheaterMode ? <FaCompress /> : <FaExpand />}
+                </Button>
+              </>
+            )}
             <MobileCameraDrawer
               allCameras={effectiveCameras}
               selected={mainCamera}
@@ -788,7 +821,9 @@ export function RecordingView({
                 ? fullscreen
                   ? "min-w-0 px-0"
                   : "min-w-0 px-4"
-                : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
+                : mobileTheaterMode
+                  ? "min-h-0 flex-1"
+                  : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
             )}
           >
             <div
@@ -817,10 +852,14 @@ export function RecordingView({
                 <div
                   className={cn(
                     "relative max-h-full min-h-0 min-w-0 max-w-full",
+                    mobileTheaterMode && mobileViewportMode == "fill" && "size-full",
                     fittedPlayerClass,
                   )}
                   style={{
-                    aspectRatio: getCameraAspect(mainCamera),
+                    aspectRatio:
+                      mobileTheaterMode && mobileViewportMode == "fill"
+                        ? undefined
+                        : getCameraAspect(mainCamera),
                   }}
                 >
                   <DynamicVideoPlayer
@@ -854,6 +893,11 @@ export function RecordingView({
                     setFullResolution={setFullResolution}
                     toggleFullscreen={toggleFullscreen}
                     containerRef={mainLayoutRef}
+                    viewportMode={
+                      isMobile && mobileTheaterMode
+                        ? mobileViewportMode
+                        : "fit"
+                    }
                   />
                 </div>
               </div>
@@ -914,36 +958,38 @@ export function RecordingView({
               )}
             </div>
           </div>
-          <Timeline
-            contentRef={contentRef}
-            mainCamera={mainCamera}
-            timelineType={
-              (exportRange == undefined && debugReplayRange == undefined
-                ? timelineType
-                : "timeline") ?? "timeline"
-            }
-            timeRange={timeRange}
-            mainCameraReviewItems={mainCameraReviewItems}
-            activeReviewItem={activeReviewItem}
-            currentTime={currentTime}
-            exportRange={
-              exportMode == "timeline"
-                ? exportRange
-                : debugReplayMode == "timeline"
-                  ? debugReplayRange
-                  : undefined
-            }
-            setCurrentTime={setCurrentTime}
-            manuallySetCurrentTime={manuallySetCurrentTime}
-            setScrubbing={setScrubbing}
-            setExportRange={
-              debugReplayMode == "timeline"
-                ? setDebugReplayRange
-                : setExportRange
-            }
-            onAnalysisOpen={onAnalysisOpen}
-            isPlaying={mainControllerRef?.current?.isPlaying() ?? false}
-          />
+          {!(isMobile && mobileTheaterMode) && (
+            <Timeline
+              contentRef={contentRef}
+              mainCamera={mainCamera}
+              timelineType={
+                (exportRange == undefined && debugReplayRange == undefined
+                  ? timelineType
+                  : "timeline") ?? "timeline"
+              }
+              timeRange={timeRange}
+              mainCameraReviewItems={mainCameraReviewItems}
+              activeReviewItem={activeReviewItem}
+              currentTime={currentTime}
+              exportRange={
+                exportMode == "timeline"
+                  ? exportRange
+                  : debugReplayMode == "timeline"
+                    ? debugReplayRange
+                    : undefined
+              }
+              setCurrentTime={setCurrentTime}
+              manuallySetCurrentTime={manuallySetCurrentTime}
+              setScrubbing={setScrubbing}
+              setExportRange={
+                debugReplayMode == "timeline"
+                  ? setDebugReplayRange
+                  : setExportRange
+              }
+              onAnalysisOpen={onAnalysisOpen}
+              isPlaying={mainControllerRef?.current?.isPlaying() ?? false}
+            />
+          )}
         </div>
       </div>
     </DetailStreamProvider>

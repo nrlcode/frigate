@@ -64,6 +64,7 @@ type HlsVideoPlayerProps = {
   camera?: string;
   currentTimeOverride?: number;
   transformedOverlay?: ReactNode;
+  viewportMode?: "fit" | "fill";
 };
 
 export default function HlsVideoPlayer({
@@ -89,6 +90,7 @@ export default function HlsVideoPlayer({
   camera,
   currentTimeOverride,
   transformedOverlay,
+  viewportMode = "fit",
 }: HlsVideoPlayerProps) {
   const { t } = useTranslation(["components/player", "views/live"]);
   const { data: config } = useSWR<FrigateConfig>("config");
@@ -341,12 +343,13 @@ export default function HlsVideoPlayer({
             }
           }}
           onSnapshot={async () => {
+            const frameTime = getVideoTime();
             const result = await grabVideoSnapshot(videoRef.current);
 
             if (result.success) {
               downloadSnapshot(
                 result.data.dataUrl,
-                generateSnapshotFilename(camera ?? "recording"),
+                generateSnapshotFilename(camera ?? "recording", frameTime),
               );
               toast.success(t("snapshot.downloadStarted", { ns: "views/live" }), {
                 position: "top-center",
@@ -414,7 +417,12 @@ export default function HlsVideoPlayer({
             )}
           <video
             ref={videoRef}
-            className={`size-full rounded-lg bg-black md:rounded-2xl ${loadedMetadata ? "" : "invisible"} cursor-pointer`}
+            className={cn(
+              "size-full rounded-lg bg-black md:rounded-2xl",
+              loadedMetadata ? "" : "invisible",
+              "cursor-pointer",
+              viewportMode == "fill" ? "object-cover" : "object-contain",
+            )}
             preload="auto"
             autoPlay
             controls={!frigateControls}
