@@ -56,6 +56,8 @@ jobs:
         run: |
           docker pull ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
           docker run -d --name frigate-smoke \
+            --tmpfs /config:size=100000000 \
+            --tmpfs /media/frigate:size=500000000 \
             --tmpfs /tmp/cache:size=1000000000 \
             -p 5000:5000 \
             ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
