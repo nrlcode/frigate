@@ -43,3 +43,26 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/frigate-test:latest
             ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+
+      - name: Smoke test container startup
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+          docker run -d --name frigate-smoke \
+            --tmpfs /tmp/cache:size=1000000000 \
+            -p 5000:5000 \
+            ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+
+          # Poll API startup for up to 90 seconds.
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:5000/api/version >/dev/null; then
+              echo "Frigate startup smoke test passed"
+              docker rm -f frigate-smoke
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Frigate smoke test failed; dumping logs"
+          docker logs frigate-smoke || true
+          docker rm -f frigate-smoke || true
+          exit 1
