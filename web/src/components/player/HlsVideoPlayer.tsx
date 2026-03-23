@@ -22,6 +22,11 @@ import { ASPECT_VERTICAL_LAYOUT, RecordingPlayerError } from "@/types/record";
 import { useTranslation } from "react-i18next";
 import ObjectTrackOverlay from "@/components/overlay/ObjectTrackOverlay";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import {
+  downloadSnapshot,
+  generateSnapshotFilename,
+  grabVideoSnapshot,
+} from "@/utils/snapshotUtil";
 
 // Android native hls does not seek correctly
 const USE_NATIVE_HLS = false;
@@ -85,7 +90,7 @@ export default function HlsVideoPlayer({
   currentTimeOverride,
   transformedOverlay,
 }: HlsVideoPlayerProps) {
-  const { t } = useTranslation("components/player");
+  const { t } = useTranslation(["components/player", "views/live"]);
   const { data: config } = useSWR<FrigateConfig>("config");
   const isAdmin = useIsAdmin();
 
@@ -294,6 +299,7 @@ export default function HlsVideoPlayer({
             seek: true,
             playbackRate: true,
             plusUpload: isAdmin && config?.plus?.enabled == true,
+            snapshot: true,
             fullscreen: supportsFullscreen,
           }}
           setControlsOpen={setControlsOpen}
@@ -334,6 +340,24 @@ export default function HlsVideoPlayer({
               }
             }
           }}
+          onSnapshot={async () => {
+            const result = await grabVideoSnapshot(videoRef.current);
+
+            if (result.success) {
+              downloadSnapshot(
+                result.data.dataUrl,
+                generateSnapshotFilename(camera ?? "recording"),
+              );
+              toast.success(t("snapshot.downloadStarted", { ns: "views/live" }), {
+                position: "top-center",
+              });
+            } else {
+              toast.error(t("snapshot.captureFailed", { ns: "views/live" }), {
+                position: "top-center",
+              });
+            }
+          }}
+          snapshotTitle={t("snapshot.takeSnapshot", { ns: "views/live" })}
           fullscreen={fullscreen}
           toggleFullscreen={toggleFullscreen}
           containerRef={containerRef}

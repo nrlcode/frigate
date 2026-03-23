@@ -465,6 +465,27 @@ export function RecordingView({
     mainCameraAspect,
   ]);
 
+  const fittedPlayerClass = useMemo(() => {
+    if (fullscreen) {
+      return useHeightBased
+        ? "absolute inset-y-0 left-1/2 -translate-x-1/2"
+        : "absolute inset-x-0 top-1/2 -translate-y-1/2";
+    }
+
+    if (isDesktop) {
+      return useHeightBased ? "h-full" : "w-full";
+    }
+
+    return cn(
+      "flex-shrink-0 portrait:w-full landscape:h-full",
+      mainCameraAspect == "wide"
+        ? "aspect-wide"
+        : mainCameraAspect == "tall"
+          ? "aspect-tall portrait:h-full"
+          : "aspect-video",
+    );
+  }, [fullscreen, mainCameraAspect, useHeightBased]);
+
   const previewRowOverflows = useMemo(() => {
     if (!previewRowRef.current) {
       return false;
@@ -764,7 +785,9 @@ export function RecordingView({
             className={cn(
               "flex flex-1 flex-wrap overflow-hidden",
               isDesktop
-                ? "min-w-0 px-4"
+                ? fullscreen
+                  ? "min-w-0 px-0"
+                  : "min-w-0 px-4"
                 : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
             )}
           >
@@ -779,25 +802,8 @@ export function RecordingView({
               <div
                 key={mainCamera}
                 className={cn(
-                  "relative flex max-h-full min-h-0 min-w-0 max-w-full items-center justify-center",
-                  isDesktop
-                    ? // Desktop: dynamically switch between w-full and h-full based on
-                      // container vs camera aspect ratio to ensure proper fitting
-                      useHeightBased
-                      ? "h-full"
-                      : "w-full"
-                    : cn(
-                        "flex-shrink-0 portrait:w-full landscape:h-full",
-                        mainCameraAspect == "wide"
-                          ? "aspect-wide"
-                          : mainCameraAspect == "tall"
-                            ? "aspect-tall portrait:h-full"
-                            : "aspect-video",
-                      ),
+                  "relative flex size-full min-h-0 min-w-0 items-center justify-center",
                 )}
-                style={{
-                  aspectRatio: getCameraAspect(mainCamera),
-                }}
               >
                 {(isDesktop || isTablet) && (
                   <GenAISummaryDialog
@@ -808,38 +814,48 @@ export function RecordingView({
                   </GenAISummaryDialog>
                 )}
 
-                <DynamicVideoPlayer
-                  className={grow}
-                  camera={mainCamera}
-                  timeRange={currentTimeRange}
-                  cameraPreviews={allPreviews ?? []}
-                  startTimestamp={playbackStart}
-                  hotKeys={
-                    exportMode != "select" && debugReplayMode != "select"
-                  }
-                  fullscreen={fullscreen}
-                  onTimestampUpdate={(timestamp) => {
-                    setPlayerTime(timestamp);
-                    setCurrentTime(timestamp);
-                    Object.values(previewRefs.current ?? {}).forEach((prev) =>
-                      prev.scrubToTimestamp(Math.floor(timestamp)),
-                    );
+                <div
+                  className={cn(
+                    "relative max-h-full min-h-0 min-w-0 max-w-full",
+                    fittedPlayerClass,
+                  )}
+                  style={{
+                    aspectRatio: getCameraAspect(mainCamera),
                   }}
-                  onClipEnded={onClipEnded}
-                  onSeekToTime={manuallySetCurrentTime}
-                  onControllerReady={(controller) => {
-                    mainControllerRef.current = controller;
-                  }}
-                  isScrubbing={
-                    scrubbing ||
-                    exportMode == "timeline" ||
-                    debugReplayMode == "timeline"
-                  }
-                  supportsFullscreen={supportsFullScreen}
-                  setFullResolution={setFullResolution}
-                  toggleFullscreen={toggleFullscreen}
-                  containerRef={mainLayoutRef}
-                />
+                >
+                  <DynamicVideoPlayer
+                    className={grow}
+                    camera={mainCamera}
+                    timeRange={currentTimeRange}
+                    cameraPreviews={allPreviews ?? []}
+                    startTimestamp={playbackStart}
+                    hotKeys={
+                      exportMode != "select" && debugReplayMode != "select"
+                    }
+                    fullscreen={fullscreen}
+                    onTimestampUpdate={(timestamp) => {
+                      setPlayerTime(timestamp);
+                      setCurrentTime(timestamp);
+                      Object.values(previewRefs.current ?? {}).forEach((prev) =>
+                        prev.scrubToTimestamp(Math.floor(timestamp)),
+                      );
+                    }}
+                    onClipEnded={onClipEnded}
+                    onSeekToTime={manuallySetCurrentTime}
+                    onControllerReady={(controller) => {
+                      mainControllerRef.current = controller;
+                    }}
+                    isScrubbing={
+                      scrubbing ||
+                      exportMode == "timeline" ||
+                      debugReplayMode == "timeline"
+                    }
+                    supportsFullscreen={supportsFullScreen}
+                    setFullResolution={setFullResolution}
+                    toggleFullscreen={toggleFullscreen}
+                    containerRef={mainLayoutRef}
+                  />
+                </div>
               </div>
               {isDesktop && effectiveCameras.length > 1 && (
                 <div
