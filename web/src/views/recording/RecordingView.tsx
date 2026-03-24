@@ -51,7 +51,7 @@ import MobileTimelineDrawer from "@/components/overlay/MobileTimelineDrawer";
 import MobileReviewSettingsDrawer from "@/components/overlay/MobileReviewSettingsDrawer";
 import Logo from "@/components/Logo";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FaCompress, FaExpand, FaVideo } from "react-icons/fa";
+import { FaVideo } from "react-icons/fa";
 import { VideoResolutionType } from "@/types/live";
 import {
   ASPECT_VERTICAL_LAYOUT,
@@ -79,9 +79,6 @@ import {
 } from "@/components/overlay/chip/GenAISummaryChip";
 
 const DATA_REFRESH_TIME = 600000; // 10 minutes
-const MOBILE_TIMELINE_MIN_SHARE = 0.4;
-const MOBILE_CAMERA_BASE_SHARE = 0.5;
-const MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE = 1.6;
 
 type RecordingViewProps = {
   startCamera: string;
@@ -374,10 +371,6 @@ export function RecordingView({
   const { fullscreen, toggleFullscreen, supportsFullScreen } =
     useFullscreen(mainLayoutRef);
 
-  const [mobileTheaterMode, setMobileTheaterMode] = useState(false);
-  const [mobilePlayerZoomScale, setMobilePlayerZoomScale] = useState(1.0);
-  const [mobileFitHeightPercent, setMobileFitHeightPercent] = useState(100);
-
   // layout
 
   const getCameraAspect = useCallback(
@@ -434,67 +427,6 @@ export function RecordingView({
     useResizeObserver(cameraLayoutRef);
   const [{ width: previewRowWidth, height: previewRowHeight }] =
     useResizeObserver(previewRowRef);
-  const [{ width: mainLayoutWidth, height: mainLayoutHeight }] =
-    useResizeObserver(mainLayoutRef);
-
-  const isMobilePortraitLayout = useMemo(
-    () =>
-      isMobileOnly &&
-      mainLayoutHeight > 0 &&
-      mainLayoutWidth > 0 &&
-      mainLayoutHeight >= mainLayoutWidth,
-    [mainLayoutHeight, mainLayoutWidth],
-  );
-
-  const useMobileResizableLayout = useMemo(
-    () => isMobilePortraitLayout && !mobileTheaterMode && !fullscreen,
-    [fullscreen, isMobilePortraitLayout, mobileTheaterMode],
-  );
-
-  const mobileLayoutProgress = useMemo(() => {
-    if (!useMobileResizableLayout) {
-      return 0;
-    }
-
-    return Math.min(
-      1,
-      Math.max(
-        0,
-        (mobilePlayerZoomScale - 1) / (MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE - 1),
-      ),
-    );
-  }, [mobilePlayerZoomScale, useMobileResizableLayout]);
-
-  const mobileBaseCameraShare = useMemo(() => {
-    if (!useMobileResizableLayout) {
-      return undefined;
-    }
-
-    const fitRatio = Math.max(0.2, Math.min(1, mobileFitHeightPercent / 100));
-    const baselineShare = MOBILE_CAMERA_BASE_SHARE * fitRatio + 0.1;
-
-    return Math.max(0.28, Math.min(MOBILE_CAMERA_BASE_SHARE, baselineShare));
-  }, [mobileFitHeightPercent, useMobileResizableLayout]);
-
-  const mobileCameraShare = useMemo(() => {
-    if (mobileBaseCameraShare == undefined) {
-      return undefined;
-    }
-
-    const maxCameraShare = 1 - MOBILE_TIMELINE_MIN_SHARE;
-    return (
-      mobileBaseCameraShare +
-      (maxCameraShare - mobileBaseCameraShare) * mobileLayoutProgress
-    );
-  }, [mobileBaseCameraShare, mobileLayoutProgress]);
-
-  const mobileTimelineShare = useMemo(() => {
-    if (mobileCameraShare == undefined) {
-      return undefined;
-    }
-
-    return Math.max(MOBILE_TIMELINE_MIN_SHARE, 1 - mobileCameraShare);
-  }, [mobileCameraShare]);
 
   const useHeightBased = useMemo(() => {
     if (!containerWidth || !containerHeight) {
@@ -532,31 +464,6 @@ export function RecordingView({
     mainCamera,
     mainCameraAspect,
   ]);
-
-  const fittedPlayerClass = useMemo(() => {
-    if (fullscreen) {
-      return useHeightBased
-        ? "absolute inset-y-0 left-1/2 -translate-x-1/2"
-        : "absolute inset-x-0 top-1/2 -translate-y-1/2";
-    }
-
-    if (isDesktop) {
-      return useHeightBased ? "h-full" : "w-full";
-    }
-
-    if (isMobileOnly) {
-      return "size-full";
-    }
-
-    return cn(
-      "flex-shrink-0 portrait:w-full landscape:h-full",
-      mainCameraAspect == "wide"
-        ? "aspect-wide"
-        : mainCameraAspect == "tall"
-          ? "aspect-tall portrait:h-full"
-          : "aspect-video",
-    );
-  }, [fullscreen, mainCameraAspect, useHeightBased]);
 
   const previewRowOverflows = useMemo(() => {
     if (!previewRowRef.current) {
@@ -686,16 +593,6 @@ export function RecordingView({
             </Button>
           </div>
           <div className="flex items-center justify-end gap-2">
-            {isMobile && (
-              <Button
-                className="rounded-lg"
-                size="sm"
-                variant="secondary"
-                onClick={() => setMobileTheaterMode((prev) => !prev)}
-              >
-                {mobileTheaterMode ? <FaCompress /> : <FaExpand />}
-              </Button>
-            )}
             <MobileCameraDrawer
               allCameras={effectiveCameras}
               selected={mainCamera}
@@ -858,38 +755,18 @@ export function RecordingView({
         <div
           ref={mainLayoutRef}
           className={cn(
-            "flex flex-1",
-            "overflow-hidden",
-            isDesktop
-              ? "flex-row"
-              : useMobileResizableLayout
-                ? "flex-col gap-0 landscape:flex-row"
-                : "flex-col gap-2 landscape:flex-row",
+            "flex flex-1 overflow-hidden",
+            isDesktop ? "flex-row" : "flex-col gap-2 landscape:flex-row",
           )}
         >
           <div
             ref={cameraLayoutRef}
             className={cn(
-              "flex flex-1 flex-wrap",
-              "overflow-hidden",
+              "flex flex-1 flex-wrap overflow-hidden",
               isDesktop
-                ? fullscreen
-                  ? "min-w-0 px-0"
-                  : "min-w-0 px-4"
-                : mobileTheaterMode
-                  ? "min-h-0 flex-1"
-                  : useMobileResizableLayout
-                    ? "min-h-0 flex-shrink-0 flex-grow-0 basis-auto"
-                    : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
+                ? "min-w-0 px-4"
+                : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
             )}
-            style={
-              mobileCameraShare != undefined
-                ? {
-                    flexBasis: `${mobileCameraShare * 100}%`,
-                    maxHeight: `${mobileCameraShare * 100}%`,
-                  }
-                : undefined
-            }
           >
             <div
               className={cn(
@@ -902,9 +779,25 @@ export function RecordingView({
               <div
                 key={mainCamera}
                 className={cn(
-                  "relative flex size-full min-h-0 min-w-0 items-center justify-center",
-                  isMobileOnly && "z-10",
+                  "relative flex max-h-full min-h-0 min-w-0 max-w-full items-center justify-center",
+                  isDesktop
+                    ? // Desktop: dynamically switch between w-full and h-full based on
+                      // container vs camera aspect ratio to ensure proper fitting
+                      useHeightBased
+                      ? "h-full"
+                      : "w-full"
+                    : cn(
+                        "flex-shrink-0 portrait:w-full landscape:h-full",
+                        mainCameraAspect == "wide"
+                          ? "aspect-wide"
+                          : mainCameraAspect == "tall"
+                            ? "aspect-tall portrait:h-full"
+                            : "aspect-video",
+                      ),
                 )}
+                style={{
+                  aspectRatio: getCameraAspect(mainCamera),
+                }}
               >
                 {(isDesktop || isTablet) && (
                   <GenAISummaryDialog
@@ -915,58 +808,38 @@ export function RecordingView({
                   </GenAISummaryDialog>
                 )}
 
-                <div
-                  className={cn(
-                    "relative max-h-full min-h-0 min-w-0 max-w-full",
-                    fittedPlayerClass,
-                  )}
-                  style={{
-                    aspectRatio: isMobileOnly
-                      ? undefined
-                      : getCameraAspect(mainCamera),
+                <DynamicVideoPlayer
+                  className={grow}
+                  camera={mainCamera}
+                  timeRange={currentTimeRange}
+                  cameraPreviews={allPreviews ?? []}
+                  startTimestamp={playbackStart}
+                  hotKeys={
+                    exportMode != "select" && debugReplayMode != "select"
+                  }
+                  fullscreen={fullscreen}
+                  onTimestampUpdate={(timestamp) => {
+                    setPlayerTime(timestamp);
+                    setCurrentTime(timestamp);
+                    Object.values(previewRefs.current ?? {}).forEach((prev) =>
+                      prev.scrubToTimestamp(Math.floor(timestamp)),
+                    );
                   }}
-                >
-                  <DynamicVideoPlayer
-                    className={grow}
-                    camera={mainCamera}
-                    timeRange={currentTimeRange}
-                    cameraPreviews={allPreviews ?? []}
-                    startTimestamp={playbackStart}
-                    hotKeys={
-                      exportMode != "select" && debugReplayMode != "select"
-                    }
-                    fullscreen={fullscreen}
-                    onTimestampUpdate={(timestamp) => {
-                      setPlayerTime(timestamp);
-                      setCurrentTime(timestamp);
-                      Object.values(previewRefs.current ?? {}).forEach((prev) =>
-                        prev.scrubToTimestamp(Math.floor(timestamp)),
-                      );
-                    }}
-                    onClipEnded={onClipEnded}
-                    onSeekToTime={manuallySetCurrentTime}
-                    onControllerReady={(controller) => {
-                      mainControllerRef.current = controller;
-                    }}
-                    isScrubbing={
-                      scrubbing ||
-                      exportMode == "timeline" ||
-                      debugReplayMode == "timeline"
-                    }
-                    supportsFullscreen={supportsFullScreen}
-                    setFullResolution={setFullResolution}
-                    toggleFullscreen={toggleFullscreen}
-                    containerRef={mainLayoutRef}
-                    aspectRatio={getCameraAspect(mainCamera)}
-                    onZoomScaleChange={setMobilePlayerZoomScale}
-                    onMobileFitHeightChange={setMobileFitHeightPercent}
-                    zoomLayoutScaleThreshold={
-                      useMobileResizableLayout
-                        ? MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE
-                        : 1.0
-                    }
-                  />
-                </div>
+                  onClipEnded={onClipEnded}
+                  onSeekToTime={manuallySetCurrentTime}
+                  onControllerReady={(controller) => {
+                    mainControllerRef.current = controller;
+                  }}
+                  isScrubbing={
+                    scrubbing ||
+                    exportMode == "timeline" ||
+                    debugReplayMode == "timeline"
+                  }
+                  supportsFullscreen={supportsFullScreen}
+                  setFullResolution={setFullResolution}
+                  toggleFullscreen={toggleFullscreen}
+                  containerRef={mainLayoutRef}
+                />
               </div>
               {isDesktop && effectiveCameras.length > 1 && (
                 <div
@@ -1025,51 +898,36 @@ export function RecordingView({
               )}
             </div>
           </div>
-          {!(isMobile && mobileTheaterMode) && (
-            <Timeline
-              className={
-                mobileTimelineShare != undefined
-                  ? "min-h-0 flex-shrink-0 flex-grow-0 basis-auto"
+          <Timeline
+            contentRef={contentRef}
+            mainCamera={mainCamera}
+            timelineType={
+              (exportRange == undefined && debugReplayRange == undefined
+                ? timelineType
+                : "timeline") ?? "timeline"
+            }
+            timeRange={timeRange}
+            mainCameraReviewItems={mainCameraReviewItems}
+            activeReviewItem={activeReviewItem}
+            currentTime={currentTime}
+            exportRange={
+              exportMode == "timeline"
+                ? exportRange
+                : debugReplayMode == "timeline"
+                  ? debugReplayRange
                   : undefined
-              }
-              style={
-                mobileTimelineShare != undefined
-                  ? {
-                      flexBasis: `${mobileTimelineShare * 100}%`,
-                      maxHeight: `${mobileTimelineShare * 100}%`,
-                    }
-                  : undefined
-              }
-              contentRef={contentRef}
-              mainCamera={mainCamera}
-              timelineType={
-                (exportRange == undefined && debugReplayRange == undefined
-                  ? timelineType
-                  : "timeline") ?? "timeline"
-              }
-              timeRange={timeRange}
-              mainCameraReviewItems={mainCameraReviewItems}
-              activeReviewItem={activeReviewItem}
-              currentTime={currentTime}
-              exportRange={
-                exportMode == "timeline"
-                  ? exportRange
-                  : debugReplayMode == "timeline"
-                    ? debugReplayRange
-                    : undefined
-              }
-              setCurrentTime={setCurrentTime}
-              manuallySetCurrentTime={manuallySetCurrentTime}
-              setScrubbing={setScrubbing}
-              setExportRange={
-                debugReplayMode == "timeline"
-                  ? setDebugReplayRange
-                  : setExportRange
-              }
-              onAnalysisOpen={onAnalysisOpen}
-              isPlaying={mainControllerRef?.current?.isPlaying() ?? false}
-            />
-          )}
+            }
+            setCurrentTime={setCurrentTime}
+            manuallySetCurrentTime={manuallySetCurrentTime}
+            setScrubbing={setScrubbing}
+            setExportRange={
+              debugReplayMode == "timeline"
+                ? setDebugReplayRange
+                : setExportRange
+            }
+            onAnalysisOpen={onAnalysisOpen}
+            isPlaying={mainControllerRef?.current?.isPlaying() ?? false}
+          />
         </div>
       </div>
     </DetailStreamProvider>
@@ -1077,8 +935,6 @@ export function RecordingView({
 }
 
 type TimelineProps = {
-  className?: string;
-  style?: React.CSSProperties;
   contentRef: MutableRefObject<HTMLDivElement | null>;
   timelineRef?: MutableRefObject<HTMLDivElement | null>;
   mainCamera: string;
@@ -1096,8 +952,6 @@ type TimelineProps = {
   onAnalysisOpen: (open: boolean) => void;
 };
 function Timeline({
-  className,
-  style,
   contentRef,
   timelineRef,
   mainCamera,
@@ -1206,10 +1060,8 @@ function Timeline({
 
   return (
     <div
-      style={style}
       className={cn(
         "relative overflow-hidden",
-        className,
         isDesktop
           ? cn(
               timelineType == "timeline"
