@@ -9,7 +9,11 @@ import {
 } from "react";
 import Hls, { HlsConfig } from "hls.js";
 import { isDesktop, isMobile } from "react-device-detect";
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import {
+  type ReactZoomPanPinchRef,
+  TransformComponent,
+  TransformWrapper,
+} from "react-zoom-pan-pinch";
 import VideoControls from "./VideoControls";
 import { VideoResolutionType } from "@/types/live";
 import useSWR from "swr";
@@ -59,6 +63,7 @@ type HlsVideoPlayerProps = {
   onTimeUpdate?: (time: number) => void;
   onPlaying?: () => void;
   onZoomScaleChange?: (scale: number) => void;
+  onMobileFitHeightChange?: (fitHeightPercent: number) => void;
   zoomLayoutScaleThreshold?: number;
   onSeekToTime?: (timestamp: number, play?: boolean) => void;
   setFullResolution?: React.Dispatch<React.SetStateAction<VideoResolutionType>>;
@@ -88,6 +93,7 @@ export default function HlsVideoPlayer({
   onTimeUpdate,
   onPlaying,
   onZoomScaleChange,
+  onMobileFitHeightChange,
   zoomLayoutScaleThreshold = 1.0,
   onSeekToTime,
   setFullResolution,
@@ -246,6 +252,7 @@ export default function HlsVideoPlayer({
     width: number;
     height: number;
   }>({ width: 0, height: 0 });
+  const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
   const firstFrameReportedRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [{ width: viewportWidth, height: viewportHeight }] =
@@ -367,6 +374,28 @@ export default function HlsVideoPlayer({
   }, [currentSource.playlist, currentSource.startPosition, onZoomScaleChange]);
 
   useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+
+    onMobileFitHeightChange?.(mobileFitHeightPercent);
+  }, [mobileFitHeightPercent, onMobileFitHeightChange]);
+
+  useEffect(() => {
+    if (!isLayoutZoomPhase || !transformRef.current) {
+      return;
+    }
+
+    const { positionX, positionY, scale } = transformRef.current.state;
+
+    if (Math.abs(positionX) < 0.5 && Math.abs(positionY) < 0.5) {
+      return;
+    }
+
+    transformRef.current.setTransform(0, 0, scale, 0);
+  }, [isLayoutZoomPhase, zoomScale]);
+
+  useEffect(() => {
     if (!isDesktop) {
       return;
     }
@@ -407,6 +436,7 @@ export default function HlsVideoPlayer({
 
   return (
     <TransformWrapper
+      ref={transformRef}
       minScale={1.0}
       wheel={{ smoothStep: 0.005 }}
       onZoom={(zoom) => {

@@ -50,6 +50,7 @@ type DynamicVideoPlayerProps = {
   transformedOverlay?: ReactNode;
   aspectRatio?: number;
   onZoomScaleChange?: (scale: number) => void;
+  onMobileFitHeightChange?: (fitHeightPercent: number) => void;
   zoomLayoutScaleThreshold?: number;
 };
 export default function DynamicVideoPlayer({
@@ -72,6 +73,7 @@ export default function DynamicVideoPlayer({
   transformedOverlay,
   aspectRatio,
   onZoomScaleChange,
+  onMobileFitHeightChange,
   zoomLayoutScaleThreshold,
 }: DynamicVideoPlayerProps) {
   const { t } = useTranslation(["components/player"]);
@@ -356,11 +358,15 @@ export default function DynamicVideoPlayer({
             }
 
             clearLoadingTimeout();
+            if (useLegacyDesktopHandoff) {
+              setIsLoading(false);
+            }
 
             setIsBuffering(false);
             setNoRecording(false);
           }}
           onZoomScaleChange={onZoomScaleChange}
+          onMobileFitHeightChange={onMobileFitHeightChange}
           zoomLayoutScaleThreshold={zoomLayoutScaleThreshold}
           setFullResolution={setFullResolution}
           onUploadFrame={onUploadFrameToPlus}

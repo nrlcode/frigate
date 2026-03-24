@@ -376,6 +376,7 @@ export function RecordingView({
 
   const [mobileTheaterMode, setMobileTheaterMode] = useState(false);
   const [mobilePlayerZoomScale, setMobilePlayerZoomScale] = useState(1.0);
+  const [mobileFitHeightPercent, setMobileFitHeightPercent] = useState(100);
 
   // layout
 
@@ -464,17 +465,28 @@ export function RecordingView({
     );
   }, [mobilePlayerZoomScale, useMobileResizableLayout]);
 
-  const mobileCameraShare = useMemo(() => {
+  const mobileBaseCameraShare = useMemo(() => {
     if (!useMobileResizableLayout) {
+      return undefined;
+    }
+
+    const fitRatio = Math.max(0.2, Math.min(1, mobileFitHeightPercent / 100));
+    const baselineShare = MOBILE_CAMERA_BASE_SHARE * fitRatio + 0.1;
+
+    return Math.max(0.28, Math.min(MOBILE_CAMERA_BASE_SHARE, baselineShare));
+  }, [mobileFitHeightPercent, useMobileResizableLayout]);
+
+  const mobileCameraShare = useMemo(() => {
+    if (mobileBaseCameraShare == undefined) {
       return undefined;
     }
 
     const maxCameraShare = 1 - MOBILE_TIMELINE_MIN_SHARE;
     return (
-      MOBILE_CAMERA_BASE_SHARE +
-      (maxCameraShare - MOBILE_CAMERA_BASE_SHARE) * mobileLayoutProgress
+      mobileBaseCameraShare +
+      (maxCameraShare - mobileBaseCameraShare) * mobileLayoutProgress
     );
-  }, [mobileLayoutProgress, useMobileResizableLayout]);
+  }, [mobileBaseCameraShare, mobileLayoutProgress]);
 
   const mobileTimelineShare = useMemo(() => {
     if (mobileCameraShare == undefined) {
@@ -947,6 +959,7 @@ export function RecordingView({
                     containerRef={mainLayoutRef}
                     aspectRatio={getCameraAspect(mainCamera)}
                     onZoomScaleChange={setMobilePlayerZoomScale}
+                    onMobileFitHeightChange={setMobileFitHeightPercent}
                     zoomLayoutScaleThreshold={
                       useMobileResizableLayout
                         ? MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE
