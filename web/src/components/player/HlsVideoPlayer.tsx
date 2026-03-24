@@ -329,7 +329,7 @@ export default function HlsVideoPlayer({
   const getVideoTime = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
 
-    if (!currentTime) {
+    if (currentTime == null || Number.isNaN(currentTime)) {
       return undefined;
     }
 
@@ -370,7 +370,11 @@ export default function HlsVideoPlayer({
           onSeek={(diff) => {
             const currentTime = videoRef.current?.currentTime;
 
-            if (!videoRef.current || !currentTime) {
+            if (
+              !videoRef.current ||
+              currentTime == null ||
+              Number.isNaN(currentTime)
+            ) {
               return;
             }
 
@@ -386,7 +390,7 @@ export default function HlsVideoPlayer({
           onUploadFrame={async () => {
             const frameTime = getVideoTime();
 
-            if (frameTime && onUploadFrame) {
+            if (frameTime != null && onUploadFrame) {
               const resp = await onUploadFrame(frameTime);
 
               if (resp && resp.status == 200) {
@@ -554,7 +558,7 @@ export default function HlsVideoPlayer({
 
                 const frameTime = getVideoTime();
 
-                if (frameTime) {
+                if (frameTime != null) {
                   onTimeUpdate(frameTime);
                 }
               }}

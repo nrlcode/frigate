@@ -145,7 +145,7 @@ export default function DynamicVideoPlayer({
   }, [camera, isScrubbing]);
 
   const onPlayerLoaded = useCallback(() => {
-    if (!controller || !startTimestamp) {
+    if (!controller || startTimestamp == null) {
       return;
     }
 
@@ -154,7 +154,12 @@ export default function DynamicVideoPlayer({
 
   const onTimeUpdate = useCallback(
     (time: number) => {
-      if (isScrubbing || !controller || !onTimestampUpdate || time == 0) {
+      if (
+        isScrubbing ||
+        !controller ||
+        !onTimestampUpdate ||
+        Number.isNaN(time)
+      ) {
         return;
       }
 
@@ -208,7 +213,7 @@ export default function DynamicVideoPlayer({
 
     let startPosition = undefined;
 
-    if (startTimestamp) {
+    if (startTimestamp != null) {
       const inpointOffset = calculateInpointOffset(
         recordingParams.after,
         (recordings || [])[0],
@@ -310,6 +315,8 @@ export default function DynamicVideoPlayer({
               clearTimeout(loadingTimeout);
             }
 
+            setIsLoading(false);
+            setIsBuffering(false);
             setNoRecording(false);
           }}
           setFullResolution={setFullResolution}
