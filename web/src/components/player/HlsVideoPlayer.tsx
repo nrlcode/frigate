@@ -375,6 +375,7 @@ export default function HlsVideoPlayer({
                 generateSnapshotFilename(
                   camera ?? "recording",
                   snapshotTimestamp,
+                  config?.ui?.timezone,
                 ),
               );
               toast.success(

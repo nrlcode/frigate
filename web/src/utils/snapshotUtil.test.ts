@@ -6,16 +6,22 @@ import {
 
 describe("generateSnapshotFilename", () => {
   it("uses the provided playback timestamp in the filename", () => {
-    expect(generateSnapshotFilename("driveway", 1712592245)).toBe(
+    expect(generateSnapshotFilename("driveway", 1712592245, "UTC")).toBe(
       "driveway_snapshot_2024-04-08T16-04-05.jpg",
     );
+  });
+
+  it("uses the requested timezone so the filename matches timeline-local time", () => {
+    expect(
+      generateSnapshotFilename("driveway", 1712592245, "America/Los_Angeles"),
+    ).toBe("driveway_snapshot_2024-04-08T09-04-05.jpg");
   });
 
   it("falls back to the current time when no playback timestamp is provided", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-08-09T10:11:12Z"));
 
-    expect(generateSnapshotFilename("front_yard")).toBe(
+    expect(generateSnapshotFilename("front_yard", undefined, "UTC")).toBe(
       "front_yard_snapshot_2024-08-09T10-11-12.jpg",
     );
 
