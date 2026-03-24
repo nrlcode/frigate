@@ -88,7 +88,27 @@ if [[ "${TARGETARCH}" == "amd64" ]]; then
     apt-get install -y dpkg
 
     # use intel apt intel packages
-    wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+    # retries + validation are needed because this endpoint occasionally returns
+    # transient invalid content in CI, which otherwise fails gpg --dearmor.
+    intel_key_url="https://repositories.intel.com/gpu/intel-graphics.key"
+    rm -f /tmp/intel-graphics.key /usr/share/keyrings/intel-graphics.gpg
+    for i in 1 2 3 4 5; do
+        if curl -fsSL "${intel_key_url}" -o /tmp/intel-graphics.key \
+            && grep -q "BEGIN PGP PUBLIC KEY BLOCK" /tmp/intel-graphics.key \
+            && gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg /tmp/intel-graphics.key; then
+            break
+        fi
+
+        echo "Warning: failed to fetch/validate intel graphics key (attempt ${i}/5)"
+        rm -f /tmp/intel-graphics.key /usr/share/keyrings/intel-graphics.gpg
+        sleep $((i * 2))
+    done
+    rm -f /tmp/intel-graphics.key
+    if [[ ! -s /usr/share/keyrings/intel-graphics.gpg ]]; then
+        echo "Error: could not retrieve a valid Intel graphics apt key after retries"
+        exit 1
+    fi
+
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | tee /etc/apt/sources.list.d/intel-gpu-jammy.list
     apt-get -qq update
     apt-get -qq install --no-install-recommends --no-install-suggests -y \
