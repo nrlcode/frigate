@@ -792,14 +792,16 @@ export function RecordingView({
         <div
           ref={mainLayoutRef}
           className={cn(
-            "flex flex-1 overflow-hidden",
+            "flex flex-1",
+            isDesktop ? "overflow-hidden" : "overflow-visible",
             isDesktop ? "flex-row" : "flex-col gap-2 landscape:flex-row",
           )}
         >
           <div
             ref={cameraLayoutRef}
             className={cn(
-              "flex flex-1 flex-wrap overflow-hidden",
+              "flex flex-1 flex-wrap",
+              isDesktop ? "overflow-hidden" : "overflow-visible",
               isDesktop
                 ? fullscreen
                   ? "min-w-0 px-0"
@@ -821,6 +823,7 @@ export function RecordingView({
                 key={mainCamera}
                 className={cn(
                   "relative flex size-full min-h-0 min-w-0 items-center justify-center",
+                  isMobileOnly && "z-10",
                 )}
               >
                 {(isDesktop || isTablet) && (
