@@ -56,6 +56,7 @@ type HlsVideoPlayerProps = {
   onTimeUpdate?: (time: number) => void;
   onPlaying?: () => void;
   onSeekToTime?: (timestamp: number, play?: boolean) => void;
+  onGetAbsoluteTimestamp?: (playerSeconds: number) => number | undefined;
   setFullResolution?: React.Dispatch<React.SetStateAction<VideoResolutionType>>;
   onUploadFrame?: (playTime: number) => Promise<AxiosResponse> | undefined;
   toggleFullscreen?: () => void;
@@ -81,6 +82,7 @@ export default function HlsVideoPlayer({
   onTimeUpdate,
   onPlaying,
   onSeekToTime,
+  onGetAbsoluteTimestamp,
   setFullResolution,
   onUploadFrame,
   toggleFullscreen,
@@ -287,7 +289,7 @@ export default function HlsVideoPlayer({
   const getVideoTime = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
 
-    if (!currentTime) {
+    if (currentTime == undefined) {
       return undefined;
     }
 
@@ -329,7 +331,7 @@ export default function HlsVideoPlayer({
           onSeek={(diff) => {
             const currentTime = videoRef.current?.currentTime;
 
-            if (!videoRef.current || !currentTime) {
+            if (!videoRef.current || currentTime == undefined) {
               return;
             }
 
@@ -345,7 +347,7 @@ export default function HlsVideoPlayer({
           onUploadFrame={async () => {
             const frameTime = getVideoTime();
 
-            if (frameTime && onUploadFrame) {
+            if (frameTime != undefined && onUploadFrame) {
               const resp = await onUploadFrame(frameTime);
 
               if (resp && resp.status == 200) {
@@ -361,12 +363,19 @@ export default function HlsVideoPlayer({
           }}
           onSnapshot={async () => {
             const frameTime = getVideoTime();
+            const snapshotTimestamp =
+              frameTime != undefined
+                ? (onGetAbsoluteTimestamp?.(frameTime) ?? frameTime)
+                : undefined;
             const result = await grabVideoSnapshot(videoRef.current);
 
             if (result.success) {
               downloadSnapshot(
                 result.data.dataUrl,
-                generateSnapshotFilename(camera ?? "recording", frameTime),
+                generateSnapshotFilename(
+                  camera ?? "recording",
+                  snapshotTimestamp,
+                ),
               );
               toast.success(
                 t("snapshot.downloadStarted", { ns: "views/live" }),
@@ -512,7 +521,7 @@ export default function HlsVideoPlayer({
 
               const frameTime = getVideoTime();
 
-              if (frameTime) {
+              if (frameTime != undefined) {
                 onTimeUpdate(frameTime);
               }
             }}
