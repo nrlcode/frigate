@@ -371,9 +371,6 @@ export function RecordingView({
   const { fullscreen, toggleFullscreen, supportsFullScreen } =
     useFullscreen(mainLayoutRef);
 
-  const [mobileViewportMode, setMobileViewportMode] = useState<"fit" | "fill">(
-    "fit",
-  );
   const [mobileTheaterMode, setMobileTheaterMode] = useState(false);
 
   // layout
@@ -481,12 +478,8 @@ export function RecordingView({
       return useHeightBased ? "h-full" : "w-full";
     }
 
-    if (mobileTheaterMode && mobileViewportMode == "fill") {
+    if (isMobileOnly) {
       return "size-full";
-    }
-
-    if (mobileTheaterMode) {
-      return "portrait:w-full landscape:h-full";
     }
 
     return cn(
@@ -497,13 +490,7 @@ export function RecordingView({
           ? "aspect-tall portrait:h-full"
           : "aspect-video",
     );
-  }, [
-    fullscreen,
-    mainCameraAspect,
-    mobileTheaterMode,
-    mobileViewportMode,
-    useHeightBased,
-  ]);
+  }, [fullscreen, mainCameraAspect, useHeightBased]);
 
   const previewRowOverflows = useMemo(() => {
     if (!previewRowRef.current) {
@@ -634,28 +621,14 @@ export function RecordingView({
           </div>
           <div className="flex items-center justify-end gap-2">
             {isMobile && (
-              <>
-                <Button
-                  className="rounded-lg"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() =>
-                    setMobileViewportMode((prev) =>
-                      prev == "fit" ? "fill" : "fit",
-                    )
-                  }
-                >
-                  {mobileViewportMode == "fit" ? "Fill" : "Fit"}
-                </Button>
-                <Button
-                  className="rounded-lg"
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setMobileTheaterMode((prev) => !prev)}
-                >
-                  {mobileTheaterMode ? <FaCompress /> : <FaExpand />}
-                </Button>
-              </>
+              <Button
+                className="rounded-lg"
+                size="sm"
+                variant="secondary"
+                onClick={() => setMobileTheaterMode((prev) => !prev)}
+              >
+                {mobileTheaterMode ? <FaCompress /> : <FaExpand />}
+              </Button>
             )}
             <MobileCameraDrawer
               allCameras={effectiveCameras}
@@ -862,16 +835,12 @@ export function RecordingView({
                 <div
                   className={cn(
                     "relative max-h-full min-h-0 min-w-0 max-w-full",
-                    mobileTheaterMode &&
-                      mobileViewportMode == "fill" &&
-                      "size-full",
                     fittedPlayerClass,
                   )}
                   style={{
-                    aspectRatio:
-                      mobileTheaterMode && mobileViewportMode == "fill"
-                        ? undefined
-                        : getCameraAspect(mainCamera),
+                    aspectRatio: isMobileOnly
+                      ? undefined
+                      : getCameraAspect(mainCamera),
                   }}
                 >
                   <DynamicVideoPlayer
@@ -905,9 +874,7 @@ export function RecordingView({
                     setFullResolution={setFullResolution}
                     toggleFullscreen={toggleFullscreen}
                     containerRef={mainLayoutRef}
-                    viewportMode={
-                      isMobile && mobileTheaterMode ? mobileViewportMode : "fit"
-                    }
+                    aspectRatio={getCameraAspect(mainCamera)}
                   />
                 </div>
               </div>
