@@ -55,8 +55,11 @@ type HlsVideoPlayerProps = {
   inpointOffset?: number;
   onClipEnded?: (currentTime: number) => void;
   onPlayerLoaded?: () => void;
+  onFirstFrame?: () => void;
   onTimeUpdate?: (time: number) => void;
   onPlaying?: () => void;
+  onZoomScaleChange?: (scale: number) => void;
+  zoomLayoutScaleThreshold?: number;
   onSeekToTime?: (timestamp: number, play?: boolean) => void;
   setFullResolution?: React.Dispatch<React.SetStateAction<VideoResolutionType>>;
   onUploadFrame?: (playTime: number) => Promise<AxiosResponse> | undefined;
@@ -81,8 +84,11 @@ export default function HlsVideoPlayer({
   inpointOffset = 0,
   onClipEnded,
   onPlayerLoaded,
+  onFirstFrame,
   onTimeUpdate,
   onPlaying,
+  onZoomScaleChange,
+  zoomLayoutScaleThreshold = 1.0,
   onSeekToTime,
   setFullResolution,
   onUploadFrame,
@@ -240,9 +246,14 @@ export default function HlsVideoPlayer({
     width: number;
     height: number;
   }>({ width: 0, height: 0 });
+  const firstFrameReportedRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [{ width: viewportWidth, height: viewportHeight }] =
     useResizeObserver(viewportRef);
+  const clampedZoomLayoutScaleThreshold = useMemo(
+    () => Math.max(1.0, zoomLayoutScaleThreshold),
+    [zoomLayoutScaleThreshold],
+  );
 
   const effectiveAspectRatio = useMemo(() => {
     if (videoDimensions.width > 0 && videoDimensions.height > 0) {
@@ -279,6 +290,58 @@ export default function HlsVideoPlayer({
     return Math.min(1, Math.max(0, zoomScale - 1));
   }, [zoomScale]);
 
+  const isLayoutZoomPhase = useMemo(
+    () =>
+      isMobile &&
+      clampedZoomLayoutScaleThreshold > 1 &&
+      zoomScale < clampedZoomLayoutScaleThreshold,
+    [clampedZoomLayoutScaleThreshold, zoomScale],
+  );
+
+  const frameCompensationScale = useMemo(() => {
+    if (!isMobile || clampedZoomLayoutScaleThreshold <= 1 || zoomScale <= 0) {
+      return 1;
+    }
+
+    if (zoomScale <= clampedZoomLayoutScaleThreshold) {
+      return 1 / zoomScale;
+    }
+
+    return 1 / clampedZoomLayoutScaleThreshold;
+  }, [clampedZoomLayoutScaleThreshold, zoomScale]);
+
+  const reportFirstFrame = useCallback(() => {
+    if (firstFrameReportedRef.current) {
+      return;
+    }
+
+    firstFrameReportedRef.current = true;
+    onFirstFrame?.();
+  }, [onFirstFrame]);
+
+  const queueFirstFrameCallback = useCallback(() => {
+    const video = videoRef.current;
+
+    if (!video || firstFrameReportedRef.current) {
+      return;
+    }
+
+    const frameCallbackVideo = video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (callback: () => void) => number;
+    };
+
+    if (typeof frameCallbackVideo.requestVideoFrameCallback === "function") {
+      frameCallbackVideo.requestVideoFrameCallback(() => {
+        reportFirstFrame();
+      });
+      return;
+    }
+
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      reportFirstFrame();
+    }
+  }, [reportFirstFrame, videoRef]);
+
   const playerFrameStyle = useMemo(() => {
     if (!isMobile || !effectiveAspectRatio) {
       return {
@@ -296,6 +359,12 @@ export default function HlsVideoPlayer({
       aspectRatio: `${effectiveAspectRatio}`,
     };
   }, [effectiveAspectRatio, mobileFitHeightPercent, mobileFrameExpansion]);
+
+  useEffect(() => {
+    firstFrameReportedRef.current = false;
+    setZoomScale(1.0);
+    onZoomScaleChange?.(1.0);
+  }, [currentSource.playlist, currentSource.startPosition, onZoomScaleChange]);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -340,7 +409,11 @@ export default function HlsVideoPlayer({
     <TransformWrapper
       minScale={1.0}
       wheel={{ smoothStep: 0.005 }}
-      onZoom={(zoom) => setZoomScale(zoom.state.scale)}
+      onZoom={(zoom) => {
+        setZoomScale(zoom.state.scale);
+        onZoomScaleChange?.(zoom.state.scale);
+      }}
+      panning={{ disabled: isLayoutZoomPhase }}
       disabled={!frigateControls}
     >
       {frigateControls && (
@@ -436,7 +509,6 @@ export default function HlsVideoPlayer({
           display: visible ? undefined : "none",
           width: "100%",
           height: "100%",
-          overflow: isMobile ? "visible" : undefined,
         }}
         wrapperProps={{
           onClick: isDesktop ? undefined : () => setControls(!controls),
@@ -444,171 +516,185 @@ export default function HlsVideoPlayer({
         contentStyle={{
           width: "100%",
           height: isMobile ? "100%" : undefined,
-          overflow: isMobile ? "visible" : undefined,
         }}
       >
-        <div
-          ref={viewportRef}
-          className={cn(
-            "relative size-full",
-            isMobile ? "z-20 overflow-visible" : "overflow-hidden",
-          )}
-        >
+        <div ref={viewportRef} className="relative size-full overflow-hidden">
           <div
             className={cn(
               "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-              isMobile ? "z-20 max-h-full max-w-none" : "size-full",
+              isMobile ? "max-h-full max-w-none" : "size-full",
             )}
             style={playerFrameStyle}
           >
-            {transformedOverlay}
-            {isDetailMode &&
-              camera &&
-              currentTime != null &&
-              loadedMetadata &&
-              videoDimensions.width > 0 &&
-              videoDimensions.height > 0 && (
-                <div className="absolute inset-0 z-50 size-full">
-                  <ObjectTrackOverlay
-                    key={`overlay-${currentTime}`}
-                    camera={camera}
-                    showBoundingBoxes={!isPlaying}
-                    currentTime={currentTime}
-                    videoWidth={videoDimensions.width}
-                    videoHeight={videoDimensions.height}
-                    className="absolute inset-0 z-10"
-                    onSeekToTime={(timestamp, play) => {
-                      if (onSeekToTime) {
-                        onSeekToTime(timestamp, play);
+            <div
+              className="relative size-full"
+              style={{
+                transform: `scale(${frameCompensationScale})`,
+                transformOrigin: "center center",
+              }}
+            >
+              {transformedOverlay}
+              {isDetailMode &&
+                camera &&
+                currentTime != null &&
+                loadedMetadata &&
+                videoDimensions.width > 0 &&
+                videoDimensions.height > 0 && (
+                  <div className="absolute inset-0 z-50 size-full">
+                    <ObjectTrackOverlay
+                      key={`overlay-${currentTime}`}
+                      camera={camera}
+                      showBoundingBoxes={!isPlaying}
+                      currentTime={currentTime}
+                      videoWidth={videoDimensions.width}
+                      videoHeight={videoDimensions.height}
+                      className="absolute inset-0 z-10"
+                      onSeekToTime={(timestamp, play) => {
+                        if (onSeekToTime) {
+                          onSeekToTime(timestamp, play);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              <video
+                ref={videoRef}
+                className={cn(
+                  "size-full rounded-lg bg-black object-contain md:rounded-2xl",
+                  loadedMetadata ? "" : "invisible",
+                  "cursor-pointer",
+                )}
+                preload="auto"
+                autoPlay
+                controls={!frigateControls}
+                playsInline
+                muted={muted}
+                onClick={
+                  isDesktop
+                    ? () => {
+                        if (zoomScale == 1.0) onPlayPause(!isPlaying);
                       }
-                    }}
-                  />
-                </div>
-              )}
-            <video
-              ref={videoRef}
-              className={cn(
-                "size-full rounded-lg bg-black object-contain md:rounded-2xl",
-                loadedMetadata ? "" : "invisible",
-                "cursor-pointer",
-              )}
-              preload="auto"
-              autoPlay
-              controls={!frigateControls}
-              playsInline
-              muted={muted}
-              onClick={
-                isDesktop
-                  ? () => {
-                      if (zoomScale == 1.0) onPlayPause(!isPlaying);
+                    : undefined
+                }
+                onVolumeChange={() => {
+                  setVolume(videoRef.current?.volume ?? 1.0, true);
+                  if (!frigateControls) {
+                    setMuted(videoRef.current?.muted);
+                  }
+                }}
+                onPlay={() => {
+                  setIsPlaying(true);
+
+                  if (isMobile) {
+                    setControls(true);
+                    setMobileCtrlTimeout(
+                      setTimeout(() => setControls(false), 4000),
+                    );
+                  }
+                }}
+                onPlaying={() => {
+                  queueFirstFrameCallback();
+                  onPlaying?.();
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  clearTimeout(bufferTimeout);
+
+                  if (isMobile && mobileCtrlTimeout) {
+                    clearTimeout(mobileCtrlTimeout);
+                  }
+                }}
+                onWaiting={() => {
+                  if (onError != undefined) {
+                    if (videoRef.current?.paused) {
+                      return;
                     }
-                  : undefined
-              }
-              onVolumeChange={() => {
-                setVolume(videoRef.current?.volume ?? 1.0, true);
-                if (!frigateControls) {
-                  setMuted(videoRef.current?.muted);
-                }
-              }}
-              onPlay={() => {
-                setIsPlaying(true);
 
-                if (isMobile) {
-                  setControls(true);
-                  setMobileCtrlTimeout(
-                    setTimeout(() => setControls(false), 4000),
-                  );
-                }
-              }}
-              onPlaying={onPlaying}
-              onPause={() => {
-                setIsPlaying(false);
-                clearTimeout(bufferTimeout);
+                    setBufferTimeout(
+                      setTimeout(() => {
+                        if (
+                          document.visibilityState === "visible" &&
+                          videoRef.current
+                        ) {
+                          onError("stalled");
+                        }
+                      }, 3000),
+                    );
+                  }
+                }}
+                onProgress={() => {
+                  if (onError != undefined) {
+                    if (videoRef.current?.paused) {
+                      return;
+                    }
 
-                if (isMobile && mobileCtrlTimeout) {
-                  clearTimeout(mobileCtrlTimeout);
-                }
-              }}
-              onWaiting={() => {
-                if (onError != undefined) {
-                  if (videoRef.current?.paused) {
+                    if (bufferTimeout) {
+                      clearTimeout(bufferTimeout);
+                      setBufferTimeout(undefined);
+                    }
+                  }
+                }}
+                onTimeUpdate={() => {
+                  if (
+                    !firstFrameReportedRef.current &&
+                    videoRef.current &&
+                    videoRef.current.readyState >=
+                      HTMLMediaElement.HAVE_CURRENT_DATA
+                  ) {
+                    reportFirstFrame();
+                  }
+
+                  if (!onTimeUpdate) {
                     return;
                   }
 
-                  setBufferTimeout(
-                    setTimeout(() => {
-                      if (
-                        document.visibilityState === "visible" &&
-                        videoRef.current
-                      ) {
-                        onError("stalled");
-                      }
-                    }, 3000),
-                  );
-                }
-              }}
-              onProgress={() => {
-                if (onError != undefined) {
-                  if (videoRef.current?.paused) {
-                    return;
+                  const frameTime = getVideoTime();
+
+                  if (frameTime != null) {
+                    onTimeUpdate(frameTime);
                   }
+                }}
+                onLoadedData={() => {
+                  onPlayerLoaded?.();
+                  handleLoadedMetadata();
+                  queueFirstFrameCallback();
 
-                  if (bufferTimeout) {
-                    clearTimeout(bufferTimeout);
-                    setBufferTimeout(undefined);
+                  if (videoRef.current) {
+                    if (playbackRate) {
+                      videoRef.current.playbackRate = playbackRate;
+                    }
+
+                    if (volume) {
+                      videoRef.current.volume = volume;
+                    }
                   }
-                }
-              }}
-              onTimeUpdate={() => {
-                if (!onTimeUpdate) {
-                  return;
-                }
-
-                const frameTime = getVideoTime();
-
-                if (frameTime != null) {
-                  onTimeUpdate(frameTime);
-                }
-              }}
-              onLoadedData={() => {
-                onPlayerLoaded?.();
-                handleLoadedMetadata();
-
-                if (videoRef.current) {
-                  if (playbackRate) {
-                    videoRef.current.playbackRate = playbackRate;
+                }}
+                onEnded={() => {
+                  if (onClipEnded) {
+                    onClipEnded(getVideoTime() ?? 0);
                   }
-
-                  if (volume) {
-                    videoRef.current.volume = volume;
-                  }
-                }
-              }}
-              onEnded={() => {
-                if (onClipEnded) {
-                  onClipEnded(getVideoTime() ?? 0);
-                }
-              }}
-              onError={(e) => {
-                if (
-                  !hlsRef.current &&
-                  // @ts-expect-error code does exist
-                  unsupportedErrorCodes.includes(e.target.error.code) &&
-                  videoRef.current
-                ) {
-                  setLoadedMetadata(false);
-                  setUseHlsCompat(true);
-                } else {
-                  toast.error(
+                }}
+                onError={(e) => {
+                  if (
+                    !hlsRef.current &&
                     // @ts-expect-error code does exist
-                    `Failed to play recordings (error ${e.target.error.code}): ${e.target.error.message}`,
-                    {
-                      position: "top-center",
-                    },
-                  );
-                }
-              }}
-            />
+                    unsupportedErrorCodes.includes(e.target.error.code) &&
+                    videoRef.current
+                  ) {
+                    setLoadedMetadata(false);
+                    setUseHlsCompat(true);
+                  } else {
+                    toast.error(
+                      // @ts-expect-error code does exist
+                      `Failed to play recordings (error ${e.target.error.code}): ${e.target.error.message}`,
+                      {
+                        position: "top-center",
+                      },
+                    );
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
       </TransformComponent>

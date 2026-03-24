@@ -79,6 +79,9 @@ import {
 } from "@/components/overlay/chip/GenAISummaryChip";
 
 const DATA_REFRESH_TIME = 600000; // 10 minutes
+const MOBILE_TIMELINE_MIN_SHARE = 0.4;
+const MOBILE_CAMERA_BASE_SHARE = 0.5;
+const MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE = 1.6;
 
 type RecordingViewProps = {
   startCamera: string;
@@ -372,6 +375,7 @@ export function RecordingView({
     useFullscreen(mainLayoutRef);
 
   const [mobileTheaterMode, setMobileTheaterMode] = useState(false);
+  const [mobilePlayerZoomScale, setMobilePlayerZoomScale] = useState(1.0);
 
   // layout
 
@@ -429,6 +433,56 @@ export function RecordingView({
     useResizeObserver(cameraLayoutRef);
   const [{ width: previewRowWidth, height: previewRowHeight }] =
     useResizeObserver(previewRowRef);
+  const [{ width: mainLayoutWidth, height: mainLayoutHeight }] =
+    useResizeObserver(mainLayoutRef);
+
+  const isMobilePortraitLayout = useMemo(
+    () =>
+      isMobileOnly &&
+      mainLayoutHeight > 0 &&
+      mainLayoutWidth > 0 &&
+      mainLayoutHeight >= mainLayoutWidth,
+    [mainLayoutHeight, mainLayoutWidth],
+  );
+
+  const useMobileResizableLayout = useMemo(
+    () => isMobilePortraitLayout && !mobileTheaterMode && !fullscreen,
+    [fullscreen, isMobilePortraitLayout, mobileTheaterMode],
+  );
+
+  const mobileLayoutProgress = useMemo(() => {
+    if (!useMobileResizableLayout) {
+      return 0;
+    }
+
+    return Math.min(
+      1,
+      Math.max(
+        0,
+        (mobilePlayerZoomScale - 1) / (MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE - 1),
+      ),
+    );
+  }, [mobilePlayerZoomScale, useMobileResizableLayout]);
+
+  const mobileCameraShare = useMemo(() => {
+    if (!useMobileResizableLayout) {
+      return undefined;
+    }
+
+    const maxCameraShare = 1 - MOBILE_TIMELINE_MIN_SHARE;
+    return (
+      MOBILE_CAMERA_BASE_SHARE +
+      (maxCameraShare - MOBILE_CAMERA_BASE_SHARE) * mobileLayoutProgress
+    );
+  }, [mobileLayoutProgress, useMobileResizableLayout]);
+
+  const mobileTimelineShare = useMemo(() => {
+    if (mobileCameraShare == undefined) {
+      return undefined;
+    }
+
+    return Math.max(MOBILE_TIMELINE_MIN_SHARE, 1 - mobileCameraShare);
+  }, [mobileCameraShare]);
 
   const useHeightBased = useMemo(() => {
     if (!containerWidth || !containerHeight) {
@@ -793,23 +847,37 @@ export function RecordingView({
           ref={mainLayoutRef}
           className={cn(
             "flex flex-1",
-            isDesktop ? "overflow-hidden" : "overflow-visible",
-            isDesktop ? "flex-row" : "flex-col gap-2 landscape:flex-row",
+            "overflow-hidden",
+            isDesktop
+              ? "flex-row"
+              : useMobileResizableLayout
+                ? "flex-col gap-0 landscape:flex-row"
+                : "flex-col gap-2 landscape:flex-row",
           )}
         >
           <div
             ref={cameraLayoutRef}
             className={cn(
               "flex flex-1 flex-wrap",
-              isDesktop ? "overflow-hidden" : "overflow-visible",
+              "overflow-hidden",
               isDesktop
                 ? fullscreen
                   ? "min-w-0 px-0"
                   : "min-w-0 px-4"
                 : mobileTheaterMode
                   ? "min-h-0 flex-1"
-                  : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
+                  : useMobileResizableLayout
+                    ? "min-h-0 flex-shrink-0 flex-grow-0 basis-auto"
+                    : "portrait:max-h-[50dvh] portrait:flex-shrink-0 portrait:flex-grow-0 portrait:basis-auto",
             )}
+            style={
+              mobileCameraShare != undefined
+                ? {
+                    flexBasis: `${mobileCameraShare * 100}%`,
+                    maxHeight: `${mobileCameraShare * 100}%`,
+                  }
+                : undefined
+            }
           >
             <div
               className={cn(
@@ -878,6 +946,12 @@ export function RecordingView({
                     toggleFullscreen={toggleFullscreen}
                     containerRef={mainLayoutRef}
                     aspectRatio={getCameraAspect(mainCamera)}
+                    onZoomScaleChange={setMobilePlayerZoomScale}
+                    zoomLayoutScaleThreshold={
+                      useMobileResizableLayout
+                        ? MOBILE_LAYOUT_ZOOM_UNLOCK_SCALE
+                        : 1.0
+                    }
                   />
                 </div>
               </div>
@@ -940,6 +1014,19 @@ export function RecordingView({
           </div>
           {!(isMobile && mobileTheaterMode) && (
             <Timeline
+              className={
+                mobileTimelineShare != undefined
+                  ? "min-h-0 flex-shrink-0 flex-grow-0 basis-auto"
+                  : undefined
+              }
+              style={
+                mobileTimelineShare != undefined
+                  ? {
+                      flexBasis: `${mobileTimelineShare * 100}%`,
+                      maxHeight: `${mobileTimelineShare * 100}%`,
+                    }
+                  : undefined
+              }
               contentRef={contentRef}
               mainCamera={mainCamera}
               timelineType={
@@ -977,6 +1064,8 @@ export function RecordingView({
 }
 
 type TimelineProps = {
+  className?: string;
+  style?: React.CSSProperties;
   contentRef: MutableRefObject<HTMLDivElement | null>;
   timelineRef?: MutableRefObject<HTMLDivElement | null>;
   mainCamera: string;
@@ -994,6 +1083,8 @@ type TimelineProps = {
   onAnalysisOpen: (open: boolean) => void;
 };
 function Timeline({
+  className,
+  style,
   contentRef,
   timelineRef,
   mainCamera,
@@ -1102,8 +1193,10 @@ function Timeline({
 
   return (
     <div
+      style={style}
       className={cn(
         "relative overflow-hidden",
+        className,
         isDesktop
           ? cn(
               timelineType == "timeline"

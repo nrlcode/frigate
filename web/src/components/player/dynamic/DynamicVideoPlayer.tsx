@@ -25,7 +25,7 @@ import {
   calculateInpointOffset,
   calculateSeekPosition,
 } from "@/utils/videoUtil";
-import { isFirefox } from "react-device-detect";
+import { isFirefox, isMobile } from "react-device-detect";
 
 /**
  * Dynamically switches between video playback and scrubbing preview player.
@@ -49,6 +49,8 @@ type DynamicVideoPlayerProps = {
   containerRef?: React.MutableRefObject<HTMLDivElement | null>;
   transformedOverlay?: ReactNode;
   aspectRatio?: number;
+  onZoomScaleChange?: (scale: number) => void;
+  zoomLayoutScaleThreshold?: number;
 };
 export default function DynamicVideoPlayer({
   className,
@@ -69,6 +71,8 @@ export default function DynamicVideoPlayer({
   containerRef,
   transformedOverlay,
   aspectRatio,
+  onZoomScaleChange,
+  zoomLayoutScaleThreshold,
 }: DynamicVideoPlayerProps) {
   const { t } = useTranslation(["components/player"]);
   const apiHost = useApiHost();
@@ -122,7 +126,20 @@ export default function DynamicVideoPlayer({
 
   const [isLoading, setIsLoading] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [loadingTimeout, setLoadingTimeout] = useState<NodeJS.Timeout>();
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const useLegacyDesktopHandoff = !isMobile;
+
+  const clearLoadingTimeout = useCallback(() => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleLoadingTimeout = useCallback(() => {
+    clearLoadingTimeout();
+    loadingTimeoutRef.current = setTimeout(() => setIsLoading(true), 1000);
+  }, [clearLoadingTimeout]);
 
   // Don't set source until recordings load - we need accurate startPosition
   // to avoid hls.js clamping to video end when startPosition exceeds duration
@@ -131,33 +148,44 @@ export default function DynamicVideoPlayer({
   // start at correct time
 
   useEffect(() => {
-    if (!isScrubbing) {
-      setLoadingTimeout(setTimeout(() => setIsLoading(true), 1000));
+    if (isScrubbing) {
+      clearLoadingTimeout();
+      setIsLoading(false);
+      return;
     }
 
+    scheduleLoadingTimeout();
+
     return () => {
-      if (loadingTimeout) {
-        clearTimeout(loadingTimeout);
-      }
+      clearLoadingTimeout();
     };
     // we only want trigger when scrubbing state changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera, isScrubbing]);
 
+  useEffect(() => {
+    return () => {
+      clearLoadingTimeout();
+    };
+  }, [clearLoadingTimeout]);
+
   const onPlayerLoaded = useCallback(() => {
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
-    }
-
-    setIsLoading(false);
-    setIsBuffering(false);
-
     if (!controller || startTimestamp == null) {
       return;
     }
 
     controller.seekToTimestamp(startTimestamp, true);
-  }, [startTimestamp, controller, loadingTimeout]);
+  }, [startTimestamp, controller]);
+
+  const onFirstFrame = useCallback(() => {
+    if (useLegacyDesktopHandoff) {
+      return;
+    }
+
+    clearLoadingTimeout();
+    setIsLoading(false);
+    setIsBuffering(false);
+  }, [clearLoadingTimeout, useLegacyDesktopHandoff]);
 
   const onTimeUpdate = useCallback(
     (time: number) => {
@@ -213,6 +241,7 @@ export default function DynamicVideoPlayer({
     if (!recordings?.length) {
       if (recordings?.length == 0) {
         setNoRecording(true);
+        setIsLoading(false);
       }
 
       return;
@@ -250,7 +279,7 @@ export default function DynamicVideoPlayer({
       playerRef.current.autoplay = !isScrubbing;
     }
 
-    setLoadingTimeout(setTimeout(() => setIsLoading(true), 1000));
+    scheduleLoadingTimeout();
 
     controller.newPlayback({
       recordings: recordings ?? [],
@@ -294,12 +323,19 @@ export default function DynamicVideoPlayer({
   );
 
   return (
-    <div className={cn("relative size-full", className)}>
+    <div
+      className={cn(
+        "relative size-full",
+        !useLegacyDesktopHandoff && className,
+      )}
+    >
       {source && (
         <HlsVideoPlayer
           videoRef={playerRef}
           containerRef={containerRef}
-          visible={!isScrubbing}
+          visible={
+            useLegacyDesktopHandoff ? !(isScrubbing || isLoading) : !isScrubbing
+          }
           currentSource={source}
           hotKeys={hotKeys}
           supportsFullscreen={supportsFullscreen}
@@ -307,6 +343,7 @@ export default function DynamicVideoPlayer({
           inpointOffset={inpointOffset}
           onTimeUpdate={onTimeUpdate}
           onPlayerLoaded={onPlayerLoaded}
+          onFirstFrame={onFirstFrame}
           onClipEnded={onValidateClipEnd}
           onSeekToTime={(timestamp, play) => {
             if (onSeekToTime) {
@@ -318,13 +355,13 @@ export default function DynamicVideoPlayer({
               playerRef.current?.pause();
             }
 
-            if (loadingTimeout) {
-              clearTimeout(loadingTimeout);
-            }
+            clearLoadingTimeout();
 
             setIsBuffering(false);
             setNoRecording(false);
           }}
+          onZoomScaleChange={onZoomScaleChange}
+          zoomLayoutScaleThreshold={zoomLayoutScaleThreshold}
           setFullResolution={setFullResolution}
           onUploadFrame={onUploadFrameToPlus}
           toggleFullscreen={toggleFullscreen}
@@ -342,8 +379,8 @@ export default function DynamicVideoPlayer({
       )}
       <PreviewPlayer
         className={cn(
-          "absolute inset-0 z-20",
-          !isScrubbing && "pointer-events-none",
+          useLegacyDesktopHandoff ? className : "absolute inset-0 z-20",
+          !useLegacyDesktopHandoff && !isScrubbing && "pointer-events-none",
           isScrubbing || isLoading ? "visible" : "hidden",
         )}
         camera={camera}
