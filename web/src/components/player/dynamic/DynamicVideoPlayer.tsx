@@ -145,12 +145,19 @@ export default function DynamicVideoPlayer({
   }, [camera, isScrubbing]);
 
   const onPlayerLoaded = useCallback(() => {
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+    }
+
+    setIsLoading(false);
+    setIsBuffering(false);
+
     if (!controller || startTimestamp == null) {
       return;
     }
 
     controller.seekToTimestamp(startTimestamp, true);
-  }, [startTimestamp, controller]);
+  }, [startTimestamp, controller, loadingTimeout]);
 
   const onTimeUpdate = useCallback(
     (time: number) => {
@@ -287,12 +294,12 @@ export default function DynamicVideoPlayer({
   );
 
   return (
-    <>
+    <div className={cn("relative size-full", className)}>
       {source && (
         <HlsVideoPlayer
           videoRef={playerRef}
           containerRef={containerRef}
-          visible={!(isScrubbing || isLoading)}
+          visible={!isScrubbing}
           currentSource={source}
           hotKeys={hotKeys}
           supportsFullscreen={supportsFullscreen}
@@ -315,7 +322,6 @@ export default function DynamicVideoPlayer({
               clearTimeout(loadingTimeout);
             }
 
-            setIsLoading(false);
             setIsBuffering(false);
             setNoRecording(false);
           }}
@@ -336,7 +342,8 @@ export default function DynamicVideoPlayer({
       )}
       <PreviewPlayer
         className={cn(
-          className,
+          "absolute inset-0 z-20",
+          !isScrubbing && "pointer-events-none",
           isScrubbing || isLoading ? "visible" : "hidden",
         )}
         camera={camera}
@@ -349,13 +356,13 @@ export default function DynamicVideoPlayer({
         }
       />
       {!isScrubbing && (isLoading || isBuffering) && !noRecording && (
-        <ActivityIndicator className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+        <ActivityIndicator className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2" />
       )}
       {!isScrubbing && !isLoading && noRecording && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2">
           {t("noRecordingsFoundForThisTime")}
         </div>
       )}
-    </>
+    </div>
   );
 }

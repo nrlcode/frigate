@@ -436,6 +436,7 @@ export default function HlsVideoPlayer({
           display: visible ? undefined : "none",
           width: "100%",
           height: "100%",
+          overflow: isMobile ? "visible" : undefined,
         }}
         wrapperProps={{
           onClick: isDesktop ? undefined : () => setControls(!controls),
@@ -443,13 +444,20 @@ export default function HlsVideoPlayer({
         contentStyle={{
           width: "100%",
           height: isMobile ? "100%" : undefined,
+          overflow: isMobile ? "visible" : undefined,
         }}
       >
-        <div ref={viewportRef} className="relative size-full overflow-hidden">
+        <div
+          ref={viewportRef}
+          className={cn(
+            "relative size-full",
+            isMobile ? "z-20 overflow-visible" : "overflow-hidden",
+          )}
+        >
           <div
             className={cn(
               "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-              isMobile ? "max-h-full max-w-none" : "size-full",
+              isMobile ? "z-20 max-h-full max-w-none" : "size-full",
             )}
             style={playerFrameStyle}
           >
