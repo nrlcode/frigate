@@ -43,6 +43,7 @@ export interface HlsSource {
 
 type HlsVideoPlayerProps = {
   videoRef: MutableRefObject<HTMLVideoElement | null>;
+  videoClassName?: string;
   containerRef?: React.MutableRefObject<HTMLDivElement | null>;
   visible: boolean;
   currentSource: HlsSource;
@@ -69,6 +70,7 @@ type HlsVideoPlayerProps = {
 
 export default function HlsVideoPlayer({
   videoRef,
+  videoClassName,
   containerRef,
   visible,
   currentSource,
@@ -447,7 +449,12 @@ export default function HlsVideoPlayer({
             )}
           <video
             ref={videoRef}
-            className={`size-full rounded-lg bg-black md:rounded-2xl ${loadedMetadata ? "" : "invisible"} cursor-pointer`}
+            className={cn(
+              "size-full rounded-lg bg-black md:rounded-2xl",
+              loadedMetadata ? "" : "invisible",
+              "cursor-pointer",
+              videoClassName,
+            )}
             preload="auto"
             autoPlay
             controls={!frigateControls}
