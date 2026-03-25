@@ -32,6 +32,7 @@ import { isFirefox } from "react-device-detect";
  */
 type DynamicVideoPlayerProps = {
   className?: string;
+  videoClassName?: string;
   camera: string;
   timeRange: TimeRange;
   cameraPreviews: Preview[];
@@ -47,10 +48,12 @@ type DynamicVideoPlayerProps = {
   setFullResolution: React.Dispatch<React.SetStateAction<VideoResolutionType>>;
   toggleFullscreen: () => void;
   containerRef?: React.MutableRefObject<HTMLDivElement | null>;
+  supportsSnapshot?: boolean;
   transformedOverlay?: ReactNode;
 };
 export default function DynamicVideoPlayer({
   className,
+  videoClassName,
   camera,
   timeRange,
   cameraPreviews,
@@ -66,6 +69,7 @@ export default function DynamicVideoPlayer({
   setFullResolution,
   toggleFullscreen,
   containerRef,
+  supportsSnapshot = false,
   transformedOverlay,
 }: DynamicVideoPlayerProps) {
   const { t } = useTranslation(["components/player"]);
@@ -284,6 +288,7 @@ export default function DynamicVideoPlayer({
       {source && (
         <HlsVideoPlayer
           videoRef={playerRef}
+          videoClassName={videoClassName}
           containerRef={containerRef}
           visible={!(isScrubbing || isLoading)}
           currentSource={source}
@@ -321,6 +326,7 @@ export default function DynamicVideoPlayer({
           isDetailMode={isDetailMode}
           camera={contextCamera || camera}
           currentTimeOverride={currentTime}
+          supportsSnapshot={supportsSnapshot}
           transformedOverlay={transformedOverlay}
         />
       )}

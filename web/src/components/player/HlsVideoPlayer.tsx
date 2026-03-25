@@ -22,6 +22,11 @@ import { ASPECT_VERTICAL_LAYOUT, RecordingPlayerError } from "@/types/record";
 import { useTranslation } from "react-i18next";
 import ObjectTrackOverlay from "@/components/overlay/ObjectTrackOverlay";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import {
+  downloadSnapshot,
+  generateSnapshotFilename,
+  grabVideoSnapshot,
+} from "@/utils/snapshotUtil";
 
 // Android native hls does not seek correctly
 const USE_NATIVE_HLS = false;
@@ -38,6 +43,7 @@ export interface HlsSource {
 
 type HlsVideoPlayerProps = {
   videoRef: MutableRefObject<HTMLVideoElement | null>;
+  videoClassName?: string;
   containerRef?: React.MutableRefObject<HTMLDivElement | null>;
   visible: boolean;
   currentSource: HlsSource;
@@ -58,11 +64,13 @@ type HlsVideoPlayerProps = {
   isDetailMode?: boolean;
   camera?: string;
   currentTimeOverride?: number;
+  supportsSnapshot?: boolean;
   transformedOverlay?: ReactNode;
 };
 
 export default function HlsVideoPlayer({
   videoRef,
+  videoClassName,
   containerRef,
   visible,
   currentSource,
@@ -83,9 +91,10 @@ export default function HlsVideoPlayer({
   isDetailMode = false,
   camera,
   currentTimeOverride,
+  supportsSnapshot = false,
   transformedOverlay,
 }: HlsVideoPlayerProps) {
-  const { t } = useTranslation("components/player");
+  const { t } = useTranslation(["components/player", "views/live"]);
   const { data: config } = useSWR<FrigateConfig>("config");
   const isAdmin = useIsAdmin();
 
@@ -271,6 +280,28 @@ export default function HlsVideoPlayer({
     return currentTime + inpointOffset;
   }, [videoRef, inpointOffset]);
 
+  const handleSnapshot = useCallback(async () => {
+    const result = await grabVideoSnapshot(videoRef.current);
+
+    if (result.success) {
+      downloadSnapshot(
+        result.data.dataUrl,
+        generateSnapshotFilename(
+          camera ?? "recording",
+          currentTime,
+          config?.ui?.timezone,
+        ),
+      );
+      toast.success(t("snapshot.downloadStarted", { ns: "views/live" }), {
+        position: "top-center",
+      });
+    } else {
+      toast.error(t("snapshot.captureFailed", { ns: "views/live" }), {
+        position: "top-center",
+      });
+    }
+  }, [camera, config?.ui?.timezone, currentTime, t, videoRef]);
+
   return (
     <TransformWrapper
       minScale={1.0}
@@ -294,6 +325,7 @@ export default function HlsVideoPlayer({
             seek: true,
             playbackRate: true,
             plusUpload: isAdmin && config?.plus?.enabled == true,
+            snapshot: supportsSnapshot,
             fullscreen: supportsFullscreen,
           }}
           setControlsOpen={setControlsOpen}
@@ -334,6 +366,8 @@ export default function HlsVideoPlayer({
               }
             }
           }}
+          onSnapshot={supportsSnapshot ? handleSnapshot : undefined}
+          snapshotTitle={t("snapshot.takeSnapshot", { ns: "views/live" })}
           fullscreen={fullscreen}
           toggleFullscreen={toggleFullscreen}
           containerRef={containerRef}
@@ -390,7 +424,12 @@ export default function HlsVideoPlayer({
             )}
           <video
             ref={videoRef}
-            className={`size-full rounded-lg bg-black md:rounded-2xl ${loadedMetadata ? "" : "invisible"} cursor-pointer`}
+            className={cn(
+              "size-full rounded-lg bg-black md:rounded-2xl",
+              loadedMetadata ? "" : "invisible",
+              "cursor-pointer",
+              videoClassName,
+            )}
             preload="auto"
             autoPlay
             controls={!frigateControls}
