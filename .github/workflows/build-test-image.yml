@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: Branch, tag, or commit SHA to build (blank uses current ref)
+        description: "Branch, tag, or commit SHA to build (blank uses current ref)"
         required: false
         default: ""
       custom_tag:
-        description: Optional extra tag to publish (example: snapshot-test)
+        description: "Optional extra tag to publish (example: snapshot-test)"
         required: false
         default: ""
   push:
