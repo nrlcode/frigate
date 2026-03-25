@@ -283,6 +283,24 @@ export default function DynamicVideoPlayer({
     [onClipEnded, controller, recordings],
   );
 
+  const showPreview = isScrubbing || isLoading;
+  const previewPlayer = (
+    <PreviewPlayer
+      className={cn(
+        source ? "pointer-events-none absolute inset-0 z-20" : className,
+        showPreview ? "visible" : "invisible",
+      )}
+      camera={camera}
+      timeRange={timeRange}
+      cameraPreviews={cameraPreviews}
+      startTime={startTimestamp}
+      isScrubbing={isScrubbing}
+      onControllerReady={(previewController) =>
+        setPreviewController(previewController)
+      }
+    />
+  );
+
   return (
     <>
       {source && (
@@ -290,7 +308,8 @@ export default function DynamicVideoPlayer({
           videoRef={playerRef}
           videoClassName={videoClassName}
           containerRef={containerRef}
-          visible={!(isScrubbing || isLoading)}
+          visible={true}
+          showControls={!isScrubbing && !isLoading}
           currentSource={source}
           hotKeys={hotKeys}
           supportsFullscreen={supportsFullscreen}
@@ -327,23 +346,15 @@ export default function DynamicVideoPlayer({
           camera={contextCamera || camera}
           currentTimeOverride={currentTime}
           supportsSnapshot={supportsSnapshot}
-          transformedOverlay={transformedOverlay}
+          transformedOverlay={
+            <>
+              {transformedOverlay}
+              {previewPlayer}
+            </>
+          }
         />
       )}
-      <PreviewPlayer
-        className={cn(
-          className,
-          isScrubbing || isLoading ? "visible" : "hidden",
-        )}
-        camera={camera}
-        timeRange={timeRange}
-        cameraPreviews={cameraPreviews}
-        startTime={startTimestamp}
-        isScrubbing={isScrubbing}
-        onControllerReady={(previewController) =>
-          setPreviewController(previewController)
-        }
-      />
+      {!source && previewPlayer}
       {!isScrubbing && (isLoading || isBuffering) && !noRecording && (
         <ActivityIndicator className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
       )}

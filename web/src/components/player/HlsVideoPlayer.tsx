@@ -46,6 +46,7 @@ type HlsVideoPlayerProps = {
   videoClassName?: string;
   containerRef?: React.MutableRefObject<HTMLDivElement | null>;
   visible: boolean;
+  showControls?: boolean;
   currentSource: HlsSource;
   hotKeys: boolean;
   supportsFullscreen: boolean;
@@ -73,6 +74,7 @@ export default function HlsVideoPlayer({
   videoClassName,
   containerRef,
   visible,
+  showControls = visible,
   currentSource,
   hotKeys,
   supportsFullscreen,
@@ -317,7 +319,7 @@ export default function HlsVideoPlayer({
           )}
           video={videoRef.current}
           isPlaying={isPlaying}
-          show={visible && (controls || controlsOpen)}
+          show={showControls && (controls || controlsOpen)}
           muted={muted}
           volume={volume}
           features={{
