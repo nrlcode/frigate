@@ -1,0 +1,77 @@
+name: Build Test Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - history-cleanup
+
+concurrency:
+  group: build-test-image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Generate Frigate version metadata
+        run: |
+          echo "VERSION = \"0.18.0-${GITHUB_SHA::7}\"" > frigate/version.py
+          echo "VITE_GIT_COMMIT_HASH=${GITHUB_SHA::7}" > web/.env
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push amd64 test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/main/Dockerfile
+          target: frigate
+          platforms: linux/amd64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/frigate-test:latest
+            ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+
+      - name: Smoke test container startup
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+          docker run -d --name frigate-smoke \
+            --tmpfs /config:size=100000000 \
+            --tmpfs /media/frigate:size=500000000 \
+            --tmpfs /tmp/cache:size=1000000000 \
+            -p 5000:5000 \
+            ghcr.io/${{ github.repository_owner }}/frigate-test:${{ github.sha }}
+
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:5000/api/version >/dev/null; then
+              echo "Frigate startup smoke test passed"
+              docker rm -f frigate-smoke
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Frigate smoke test failed; dumping logs"
+          docker logs frigate-smoke || true
+          docker rm -f frigate-smoke || true
+          exit 1
