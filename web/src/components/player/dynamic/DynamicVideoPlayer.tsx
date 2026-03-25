@@ -284,10 +284,7 @@ export default function DynamicVideoPlayer({
   const showPreview = isScrubbing || isLoading;
   const previewPlayer = (
     <PreviewPlayer
-      className={cn(
-        source ? "pointer-events-none absolute inset-0 z-20" : className,
-        showPreview ? "visible" : "invisible",
-      )}
+      className={cn(className, showPreview ? "visible" : "hidden")}
       camera={camera}
       timeRange={timeRange}
       cameraPreviews={cameraPreviews}
@@ -306,8 +303,7 @@ export default function DynamicVideoPlayer({
           videoRef={playerRef}
           videoClassName={videoClassName}
           containerRef={containerRef}
-          visible={true}
-          showControls={!isScrubbing && !isLoading}
+          visible={!(isScrubbing || isLoading)}
           currentSource={source}
           hotKeys={hotKeys}
           supportsFullscreen={supportsFullscreen}
@@ -343,15 +339,10 @@ export default function DynamicVideoPlayer({
           isDetailMode={isDetailMode}
           camera={contextCamera || camera}
           currentTimeOverride={currentTime}
-          transformedOverlay={
-            <>
-              {transformedOverlay}
-              {previewPlayer}
-            </>
-          }
+          transformedOverlay={transformedOverlay}
         />
       )}
-      {!source && previewPlayer}
+      {previewPlayer}
       {!isScrubbing && (isLoading || isBuffering) && !noRecording && (
         <ActivityIndicator className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
       )}
