@@ -56,13 +56,11 @@ jobs:
           short_sha="$(git rev-parse --short=7 HEAD)"
           image_repo="ghcr.io/${{ github.repository_owner }}/frigate-test"
 
-          tags="${image_repo}:branch-${branch_slug}
-${image_repo}:branch-${branch_slug}-${short_sha}"
+          tags="${image_repo}:branch-${branch_slug}\n${image_repo}:branch-${branch_slug}-${short_sha}"
 
           custom_tag="${{ github.event.inputs.custom_tag }}"
           if [ -n "$custom_tag" ]; then
-            tags="${tags}
-${image_repo}:${custom_tag}"
+            tags="${tags}\n${image_repo}:${custom_tag}"
           fi
 
           {
@@ -70,7 +68,7 @@ ${image_repo}:${custom_tag}"
             echo "short_sha=$short_sha"
             echo "image_repo=$image_repo"
             echo "tags<<EOF"
-            echo "$tags"
+            printf '%b\n' "$tags"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
